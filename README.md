@@ -1,18 +1,74 @@
-# React + Vite
+# 🎓 Smart Attendance System Using Face Recognition
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## 📌 Project Title
+**Optimization of Automated Student Attendance Tracking via Networked Camera Systems and Face Recognition Algorithms** :contentReference[oaicite:0]{index=0}
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 👥 Team Members
+- Mirkomilov Doniyorbek — 220216  
+- Tulkinkhojaev Saidmaxmud — 220452 :contentReference[oaicite:1]{index=1}  
 
-## React Compiler
+---
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+## 📖 Project Overview
+This project presents an AI-powered smart attendance system that automates student attendance tracking using face recognition technology.
 
-Note: This will impact Vite dev & build performances.
+Traditional attendance systems are time-consuming, prone to human error, and allow proxy attendance.  
+This system solves these problems by automatically detecting and recognizing students using computer vision.
 
-## Expanding the ESLint configuration
+Attendance is recorded in real time through a web-based platform without manual input. :contentReference[oaicite:2]{index=2}  
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+---
+
+## 🎯 Objectives
+- Automate student attendance tracking  
+- Implement real-time face recognition  
+- Eliminate proxy attendance  
+- Provide monitoring interface for professors  
+- Allow students to check attendance status :contentReference[oaicite:3]{index=3}  
+
+---
+
+## 🏗️ System Architecture
+
+### Frontend
+- React.js  
+- Tailwind CSS  
+
+### Backend
+- FastAPI  
+
+### Database
+- Supabase (PostgreSQL)
+
+### Face Recognition
+- OpenCV  
+- face_recognition  
+
+---
+
+## ⚙️ Features
+
+### 👨‍🎓 Student
+- Register and upload facial images  
+- Login and view attendance  
+- Check attendance history  
+
+### 👨‍🏫 Professor
+- Monitor attendance  
+- Manage class sessions  
+- View attendance reports  
+
+### 🤖 System
+- Detect and recognize faces  
+- Automatically mark attendance  
+- Store data securely  
+
+---
+
+## ▶️ Getting Started
+
+```bash
+npm install
+npm run dev
