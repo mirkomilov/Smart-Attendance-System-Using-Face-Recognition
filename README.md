@@ -7,7 +7,7 @@
 
 ## 👥 Team Members
 - Mirkomilov Doniyorbek — 220216  
-- Tulkinkhojaev Saidmaxmud — 220452 :contentReference[oaicite:1]{index=1}  
+- Tulkinkhojaev Saidmaxmud — 220452   
 
 ---
 
@@ -17,7 +17,7 @@ This project presents an AI-powered smart attendance system that automates stude
 Traditional attendance systems are time-consuming, prone to human error, and allow proxy attendance.  
 This system solves these problems by automatically detecting and recognizing students using computer vision.
 
-Attendance is recorded in real time through a web-based platform without manual input. :contentReference[oaicite:2]{index=2}  
+Attendance is recorded in real time through a web-based platform without manual input.  
 
 ---
 
@@ -26,7 +26,7 @@ Attendance is recorded in real time through a web-based platform without manual 
 - Implement real-time face recognition  
 - Eliminate proxy attendance  
 - Provide monitoring interface for professors  
-- Allow students to check attendance status :contentReference[oaicite:3]{index=3}  
+- Allow students to check attendance status   
 
 ---
 
@@ -51,13 +51,11 @@ Attendance is recorded in real time through a web-based platform without manual 
 ## ⚙️ Features
 
 ### 👨‍🎓 Student
-- Register and upload facial images  
 - Login and view attendance  
 - Check attendance history  
 
 ### 👨‍🏫 Professor
-- Monitor attendance  
-- Manage class sessions  
+- Monitor attendance    
 - View attendance reports  
 
 ### 🤖 System
