@@ -1,7 +1,7 @@
 # 🎓 Smart Attendance System Using Face Recognition
 
 ## 📌 Project Title
-**Optimization of Automated Student Attendance Tracking via Networked Camera Systems and Face Recognition Algorithms** :contentReference[oaicite:0]{index=0}
+**Optimization of Automated Student Attendance Tracking via Networked Camera Systems and Face Recognition Algorithms** 
 
 ---
 
