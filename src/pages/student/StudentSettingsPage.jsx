@@ -127,57 +127,21 @@ function StudentSettingsPage() {
         {courses.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {courses.map((subject) => {
-              const stats = getCourseStats(subject.courses?.id)
-              const percent = stats.total > 0 ? Math.round((stats.present / stats.total) * 100) : 0
-              const barColor = percent >= 75 ? 'bg-emerald-500' : percent >= 50 ? 'bg-amber-500' : 'bg-rose-500'
-
               return (
-                <div key={subject.id} className="p-6 rounded-2xl border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-base leading-tight mb-1">
-                        {subject.courses?.name || 'Unknown Course'}
-                      </h4>
-                      {subject.type && (
-                        <span className="inline-block px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[10px] font-bold uppercase tracking-wider">
-                          {subject.type}
-                        </span>
-                      )}
+                <div key={subject.id} className="p-6 rounded-2xl border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-lg mb-2">
+                      {subject.courses?.name || 'Unknown Course'}
+                    </h4>
+                    <div className="flex items-center gap-2 text-slate-600 mb-4">
+                      <User size={16} className="text-blue-500 shrink-0" />
+                      <span className="text-sm font-medium">{subject.professors?.full_name || 'TBA'}</span>
                     </div>
-                    <span className="text-lg font-extrabold text-slate-800">{percent}%</span>
                   </div>
-
-                  <div className="space-y-2 text-xs text-slate-500 mb-4">
-                    {subject.professors?.full_name && (
-                      <div className="flex items-center gap-2">
-                        <User size={12} className="text-blue-400 shrink-0" />
-                        <span>{subject.professors.full_name}</span>
-                      </div>
-                    )}
-                    {subject.rooms?.name && (
-                      <div className="flex items-center gap-2">
-                        <MapPin size={12} className="text-rose-400 shrink-0" />
-                        <span>Room {subject.rooms.name}</span>
-                      </div>
-                    )}
-                    {subject.day_of_week && subject.start_time && (
-                      <div className="flex items-center gap-2">
-                        <Clock3 size={12} className="text-emerald-500 shrink-0" />
-                        <span>
-                          {subject.day_of_week} • {subject.start_time?.slice(0, 5)} – {subject.end_time?.slice(0, 5)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${barColor}`}
-                      style={{ width: `${percent}%` }}
-                    />
-                  </div>
-                  <div className="text-xs font-medium text-slate-500 mt-2">
-                    {stats.present}/{stats.total} lessons attended
+                  
+                  <div className="pt-4 border-t border-slate-50 flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Lessons</span>
+                    <span className="text-sm font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-lg">30 lessons</span>
                   </div>
                 </div>
               )

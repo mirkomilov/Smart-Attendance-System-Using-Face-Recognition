@@ -48,8 +48,8 @@ export async function getUserProfile(userId) {
       group_id,
       faculty_id,
       user_id,
-      groups!group_id ( name ),
-      faculty!faculty_id ( name )
+      groups ( name ),
+      faculty ( name )
     `)
     .eq("user_id", userId)
     .single();
@@ -183,7 +183,8 @@ export async function markAttendance({
 
 /** ---------- Dashboard & Reports Data ---------- **/
 
-export async function getStudentSchedule(studentId) {
+export async function getStudentSchedule(groupId) {
+  if (!groupId) return ok([]);
   const { data, error } = await supabase
     .from("schedules")
     .select(`
@@ -194,7 +195,9 @@ export async function getStudentSchedule(studentId) {
       courses ( name ),
       professors ( full_name ),
       rooms ( name )
-    `);
+    `)
+    .eq("group_id", groupId)
+    .order("start_time");
   if (error) return fail(error);
   return ok(data || []);
 }

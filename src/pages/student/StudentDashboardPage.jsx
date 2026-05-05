@@ -26,7 +26,7 @@ function StudentDashboardPage() {
       const studentId = profile?.id
 
       if (studentId) {
-        const { data: schedData } = await getStudentSchedule(studentId)
+        const { data: schedData } = await getStudentSchedule(profile.group_id)
         const { data: attData } = await getAttendanceByStudent(studentId)
         if (schedData) setSchedules(schedData)
         if (attData) setAttendanceRecords(attData)
@@ -46,13 +46,15 @@ function StudentDashboardPage() {
   const prevMonth = () => setCurrentDate(subMonths(currentDate, 1))
 
   const getClassesForDate = (date) => {
-    const dayName = format(date, 'EEEE')
+    // getDay() returns 0 for Sunday, 1 for Monday, etc.
+    // Convert to 1 for Monday, ..., 7 for Sunday (ISO)
+    const dayNum = date.getDay() === 0 ? 7 : date.getDay()
     const dateStr = format(date, 'yyyy-MM-dd')
     const now = new Date()
     const todayStr = format(now, 'yyyy-MM-dd')
 
-    // Find all schedules matching this day of week
-    const dailySchedules = schedules.filter(s => s.day_of_week === dayName)
+    // Find all schedules matching this day of week (numeric)
+    const dailySchedules = schedules.filter(s => Number(s.day_of_week) === dayNum)
 
     return dailySchedules.map((sched) => {
       // check if there's an attendance record for this schedule on this date
@@ -273,6 +275,7 @@ function StudentDashboardPage() {
           )}
         </div>
       </div>
+
     </div>
   )
 }
