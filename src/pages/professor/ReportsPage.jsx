@@ -1,45 +1,84 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Users, CheckCircle2, XCircle, Search, Calendar as CalendarIcon } from 'lucide-react'
 import Card from '../../components/ui/Card'
-import { getGroupStudents, getAllAttendance } from '../../api/api'
+import { getGroupStudents, getAllAttendance, getCurrentUser, getUserProfile, getProfessorGroups } from '../../api/api'
 
 function ReportsPage() {
   const [studentsData, setStudentsData] = useState([])
   const [loading, setLoading] = useState(true)
-  
-  const groups = ['All'] // Simplified for now since we don't have group info
-  const [selectedGroup, setSelectedGroup] = useState(groups[0])
+  const [groups, setGroups] = useState([])
+  const [selectedGroup, setSelectedGroup] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedMonth, setSelectedMonth] = useState('')
 
   useEffect(() => {
-    async function loadData() {
-      const { data: students } = await getGroupStudents()
-      const { data: attendance } = await getAllAttendance()
+    async function loadInitialData() {
+      try {
+        const { data: user } = await getCurrentUser()
+        if (user) {
+          const { data: profile } = await getUserProfile(user.id)
+          if (profile) {
+            const { data: profGroups } = await getProfessorGroups(profile.id)
+            if (profGroups) {
+              setGroups(profGroups)
+              if (profGroups.length > 0) setSelectedGroup(profGroups[0].id)
+              else setLoading(false)
+            } else {
+              setLoading(false)
+            }
+          } else {
+            setLoading(false)
+          }
+        } else {
+          setLoading(false)
+        }
+      } catch (err) {
+        console.error("Reports load error:", err)
+        setLoading(false)
+      }
+    }
+    loadInitialData()
+  }, [])
+
+  useEffect(() => {
+    async function loadReports() {
+      if (!selectedGroup) {
+        if (groups.length === 0) setLoading(false)
+        return
+      }
       
-      if (students && attendance) {
-        const formattedStudents = students.map(st => {
-          const studentAttendance = attendance.filter(a => a.student_id === st.id)
-          const attendanceMap = {}
-          studentAttendance.forEach(a => {
-            if (a.attendance_sessions?.date) {
-              attendanceMap[a.attendance_sessions.date] = a.status
+      setLoading(true)
+      try {
+        const { data: students } = await getGroupStudents(selectedGroup)
+        const { data: attendance } = await getAllAttendance()
+        
+        if (students && attendance) {
+          const formattedStudents = students.map(st => {
+            const studentAttendance = attendance.filter(a => a.student_id === st.id)
+            const attendanceMap = {}
+            studentAttendance.forEach(a => {
+              if (a.attendance_sessions?.date) {
+                attendanceMap[a.attendance_sessions.date] = a.status
+              }
+            })
+            return {
+              id: st.id,
+              name: st.full_name,
+              studentId: st.student_code,
+              group: st.groups?.name || '',
+              attendance: attendanceMap
             }
           })
-          return {
-            id: st.id,
-            name: st.full_name,
-            studentId: st.student_code,
-            group: st.groups?.name || '',
-            attendance: attendanceMap
-          }
-        })
-        setStudentsData(formattedStudents)
+          setStudentsData(formattedStudents)
+        }
+      } catch (err) {
+        console.error("Reports data error:", err)
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
-    loadData()
-  }, [])
+    loadReports()
+  }, [selectedGroup, groups.length])
 
   const filteredStudents = studentsData.filter(student => 
     student.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -102,7 +141,7 @@ function ReportsPage() {
                 className="w-full appearance-none bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-2.5 pr-8 transition-all font-medium outline-none cursor-pointer"
               >
                 {groups.map(group => (
-                  <option key={group} value={group}>{group} Group</option>
+                  <option key={group.id} value={group.id}>{group.name}</option>
                 ))}
               </select>
               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">

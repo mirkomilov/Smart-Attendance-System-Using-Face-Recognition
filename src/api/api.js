@@ -210,12 +210,61 @@ export async function getProfessorSchedule(professorId) {
       day_of_week,
       start_time,
       end_time,
+      type,
       courses ( name ),
-      rooms ( name )
+      rooms ( name ),
+      groups ( id, name )
     `)
     .eq("professor_id", professorId);
   if (error) return fail(error);
   return ok(data || []);
+}
+
+export async function getProfessorSubjects(professorId) {
+  if (!professorId) return ok([]);
+  const { data, error } = await supabase
+    .from("schedules")
+    .select(`
+      courses ( id, name )
+    `)
+    .eq("professor_id", professorId);
+  
+  if (error) return fail(error);
+  
+  // Unique courses only
+  const seen = new Set();
+  const unique = (data || [])
+    .map(s => s.courses)
+    .filter(c => {
+      if (!c || seen.has(c.id)) return false;
+      seen.add(c.id);
+      return true;
+    });
+    
+  return ok(unique);
+}
+
+export async function getProfessorGroups(professorId) {
+  if (!professorId) return ok([]);
+  const { data, error } = await supabase
+    .from("schedules")
+    .select(`
+      groups ( id, name )
+    `)
+    .eq("professor_id", professorId);
+  
+  if (error) return fail(error);
+  
+  const seen = new Set();
+  const unique = (data || [])
+    .map(s => s.groups)
+    .filter(g => {
+      if (!g || seen.has(g.id)) return false;
+      seen.add(g.id);
+      return true;
+    });
+    
+  return ok(unique);
 }
 
 export async function getEnrolledCourses(groupId) {
@@ -261,22 +310,32 @@ export async function getLiveMonitoringData(sessionId) {
   return ok(data || []);
 }
 
-export async function getActiveSession() {
+export async function getActiveSession(professorId) {
+  if (!professorId) return ok(null);
+  
   const { data, error } = await supabase
     .from("attendance_sessions")
-    .select("*")
+    .select("*, schedules!inner(professor_id)")
     .is("ended_at", null)
+    .eq("schedules.professor_id", professorId)
     .order("started_at", { ascending: false })
     .limit(1)
     .single();
+    
   if (error && error.code !== 'PGRST116') return fail(error);
   return ok(data || null);
 }
 
-export async function getGroupStudents() {
-  const { data, error } = await supabase
+export async function getGroupStudents(groupId = null) {
+  let query = supabase
     .from("students")
     .select("id, student_code, full_name, group_id, groups ( name )");
+  
+  if (groupId) {
+    query = query.eq("group_id", groupId);
+  }
+  
+  const { data, error } = await query;
   if (error) return fail(error);
   return ok(data || []);
 }

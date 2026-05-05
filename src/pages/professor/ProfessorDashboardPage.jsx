@@ -12,17 +12,55 @@ function ProfessorDashboardPage() {
   const [schedules, setSchedules] = useState([])
   const [loading, setLoading] = useState(true)
 
+  const [stats, setStats] = useState({
+    totalStudents: 0,
+    presentToday: 0,
+    absentToday: 0,
+    avgAttendance: 0
+  })
+
   useEffect(() => {
     async function loadData() {
-      const { data: user } = await getCurrentUser()
-      if (user) {
-        const { data: profile } = await getUserProfile(user.id)
-        if (profile?.id) {
-          const { data: schedData } = await getProfessorSchedule(profile.id)
-          if (schedData) setSchedules(schedData)
+      try {
+        const { data: user } = await getCurrentUser()
+        if (user) {
+          const { data: profile } = await getUserProfile(user.id)
+          if (profile?.id) {
+            const { data: schedData } = await getProfessorSchedule(profile.id)
+            if (schedData) {
+              setSchedules(schedData)
+              
+              // Calculate total students
+              const groupIds = [...new Set(schedData.map(s => s.groups?.id).filter(Boolean))]
+              let allStudents = []
+              for (const gid of groupIds) {
+                const { data: groupSt } = await getGroupStudents(gid)
+                if (groupSt) allStudents = [...allStudents, ...groupSt]
+              }
+              const uniqueStudentsCount = [...new Set(allStudents.map(s => s.id))].length
+              
+              // Calculate today's attendance
+              const todayStr = format(new Date(), 'yyyy-MM-dd')
+              const { data: allAtt } = await getAllAttendance()
+              const todayAtt = allAtt?.filter(a => a.attendance_sessions?.date === todayStr) || []
+              
+              const present = todayAtt.filter(a => a.status === 'present').length
+              const absent = todayAtt.filter(a => a.status === 'absent').length
+              
+              setStats({
+                totalStudents: uniqueStudentsCount,
+                presentToday: present,
+                absentToday: absent,
+                avgAttendance: uniqueStudentsCount > 0 ? Math.round((present / uniqueStudentsCount) * 100) : 0
+              })
+            }
+          }
         }
+      } catch (error) {
+        console.error("Dashboard data load error:", error)
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
     loadData()
   }, [])
@@ -37,18 +75,21 @@ function ProfessorDashboardPage() {
   const prevMonth = () => setCurrentDate(subMonths(currentDate, 1))
 
   const getClassesForDate = (date) => {
-    const dayName = format(date, 'EEEE')
+    // getDay() returns 0 for Sunday, 1 for Monday, etc.
+    // Convert to 1 for Monday, ..., 7 for Sunday (ISO)
+    const dayNum = date.getDay() === 0 ? 7 : date.getDay()
     const dateStr = format(date, 'yyyy-MM-dd')
     
-    const dailySchedules = schedules.filter(s => s.day_of_week === dayName)
+    // Find all schedules matching this day of week (numeric)
+    const dailySchedules = schedules.filter(s => Number(s.day_of_week) === dayNum)
 
     return dailySchedules.map((cls) => {
       return { 
         id: cls.id,
         course: cls.courses?.name || 'Unknown',
-        type: 'Lecture', // Defaulting to lecture as there's no type in db schema
+        type: cls.type || 'Lecture',
         time: `${cls.start_time?.slice(0,5)} - ${cls.end_time?.slice(0,5)}`,
-        group: 'All', // Group concept not fully modeled yet
+        group: cls.groups?.name || 'Unknown',
         room: cls.rooms?.name || 'TBA',
         status: 'scheduled', 
         uniqueId: `${dateStr}-${cls.id}` 
@@ -65,10 +106,10 @@ function ProfessorDashboardPage() {
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard label="Total Students" value="0" icon={Users} color="bg-blue-600" />
-        <StatCard label="Present Today" value="0" icon={CheckCircle2} trend="0%" color="bg-emerald-500" />
-        <StatCard label="Absent Today" value="0" icon={XCircle} trend="0%" color="bg-rose-500" />
-        <StatCard label="Avg. Attendance" value="0%" icon={BarChart3} color="bg-amber-500" />
+        <StatCard label="Total Students" value={stats.totalStudents.toString()} icon={Users} color="bg-blue-600" />
+        <StatCard label="Present Today" value={stats.presentToday.toString()} icon={CheckCircle2} trend="" color="bg-emerald-500" />
+        <StatCard label="Absent Today" value={stats.absentToday.toString()} icon={XCircle} trend="" color="bg-rose-500" />
+        <StatCard label="Avg. Attendance" value={`${stats.avgAttendance}%`} icon={BarChart3} color="bg-amber-500" />
       </div>
 
       <Card title="Teaching Schedule" subtitle="View your classes, groups and locations">

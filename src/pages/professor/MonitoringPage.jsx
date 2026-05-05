@@ -9,14 +9,28 @@ function MonitoringPage() {
   const [activeSession, setActiveSession] = useState(null)
   const [loading, setLoading] = useState(true)
 
+  const [profile, setProfile] = useState(null)
+
   useEffect(() => {
+    async function init() {
+      const { data: user } = await getCurrentUser()
+      if (user) {
+        const { data: profProfile } = await getUserProfile(user.id)
+        if (profProfile) setProfile(profProfile)
+      }
+    }
+    init()
+  }, [])
+
+  useEffect(() => {
+    if (!profile) return;
+
     async function loadData() {
-      const { data: session } = await getActiveSession()
+      const { data: session } = await getActiveSession(profile.id)
       if (session) {
         setActiveSession(session)
         const { data: records } = await getLiveMonitoringData(session.id)
         if (records) {
-          // Map to monitoring data format
           const formatted = records.map(r => ({
             id: r.id,
             name: r.students?.full_name || 'Unknown',
@@ -32,10 +46,9 @@ function MonitoringPage() {
     }
 
     loadData()
-    // In a real app, we'd setup a Supabase real-time subscription here
     const interval = setInterval(loadData, 5000)
     return () => clearInterval(interval)
-  }, [])
+  }, [profile])
 
   const presentCount = monitoringData.filter(d => d.status === 'present').length
   const totalCount = monitoringData.length || 1 // Avoid div by 0
