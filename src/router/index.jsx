@@ -1,8 +1,5 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
-import HomePage from '../pages/common/HomePage'
-import RoleSelectPage from '../pages/auth/RoleSelectPage'
-import StudentLoginPage from '../pages/auth/StudentLoginPage'
-import ProfessorLoginPage from '../pages/auth/ProfessorLoginPage'
+import LoginPage from '../pages/auth/LoginPage'
 import FaceCapturePage from '../pages/auth/FaceCapturePage'
 import StudentDashboardPage from '../pages/student/StudentDashboardPage'
 import StudentSettingsPage from '../pages/student/StudentSettingsPage'
@@ -15,22 +12,11 @@ import DashboardLayout from '../layouts/DashboardLayout'
 const router = createBrowserRouter([
   {
     path: '/',
-    element: <HomePage />,
+    element: <Navigate to="/login" replace />,
   },
-
-  {
-    path: '/auth/select-role',
-    element: <RoleSelectPage />,
-  },
-
   {
     path: '/login',
-    element: <Navigate to="/auth/select-role" replace />,
-  },
-
-  {
-    path: '/student/login',
-    element: <StudentLoginPage />,
+    element: <LoginPage />,
   },
   {
     path: '/student/face-capture',
@@ -51,10 +37,6 @@ const router = createBrowserRouter([
     ],
   },
 
-  {
-    path: '/professor/login',
-    element: <ProfessorLoginPage />,
-  },
   {
     path: '/professor',
     element: <DashboardLayout role="professor" />,

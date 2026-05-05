@@ -1,14 +1,31 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, isToday } from 'date-fns'
 import { Users, CheckCircle2, XCircle, BarChart3, Calendar as CalendarIcon, MapPin, Clock3, ChevronLeft, ChevronRight } from 'lucide-react'
 import Card from '../../components/ui/Card'
 import StatCard from '../../components/ui/StatCard'
-import { PROFESSOR_SCHEDULE } from '../../data/mockData'
 import { cn } from '../../lib/cn'
+import { getCurrentUser, getUserProfile, getProfessorSchedule } from '../../api/api'
 
 function ProfessorDashboardPage() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(new Date())
+  const [schedules, setSchedules] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function loadData() {
+      const { data: user } = await getCurrentUser()
+      if (user) {
+        const { data: profile } = await getUserProfile(user.id)
+        if (profile?.id) {
+          const { data: schedData } = await getProfessorSchedule(profile.id)
+          if (schedData) setSchedules(schedData)
+        }
+      }
+      setLoading(false)
+    }
+    loadData()
+  }, [])
 
   const monthStart = startOfMonth(currentDate)
   const monthEnd = endOfMonth(monthStart)
@@ -21,24 +38,37 @@ function ProfessorDashboardPage() {
 
   const getClassesForDate = (date) => {
     const dayName = format(date, 'EEEE')
-    const scheduleDay = PROFESSOR_SCHEDULE.find((d) => d.day === dayName)
-    if (!scheduleDay || !scheduleDay.classes) return []
-
     const dateStr = format(date, 'yyyy-MM-dd')
-    return scheduleDay.classes.map((cls) => {
-      return { ...cls, status: 'scheduled', uniqueId: `${dateStr}-${cls.id}` }
+    
+    const dailySchedules = schedules.filter(s => s.day_of_week === dayName)
+
+    return dailySchedules.map((cls) => {
+      return { 
+        id: cls.id,
+        course: cls.courses?.name || 'Unknown',
+        type: 'Lecture', // Defaulting to lecture as there's no type in db schema
+        time: `${cls.start_time?.slice(0,5)} - ${cls.end_time?.slice(0,5)}`,
+        group: 'All', // Group concept not fully modeled yet
+        room: cls.rooms?.name || 'TBA',
+        status: 'scheduled', 
+        uniqueId: `${dateStr}-${cls.id}` 
+      }
     })
   }
 
   const selectedDateClasses = getClassesForDate(selectedDate)
 
+  if (loading) {
+    return <div className="p-8 text-center text-slate-500">Loading your schedule...</div>
+  }
+
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard label="Total Students" value="1,240" icon={Users} color="bg-blue-600" />
-        <StatCard label="Present Today" value="982" icon={CheckCircle2} trend="+5%" color="bg-emerald-500" />
-        <StatCard label="Absent Today" value="258" icon={XCircle} trend="-2%" color="bg-rose-500" />
-        <StatCard label="Avg. Attendance" value="84%" icon={BarChart3} color="bg-amber-500" />
+        <StatCard label="Total Students" value="0" icon={Users} color="bg-blue-600" />
+        <StatCard label="Present Today" value="0" icon={CheckCircle2} trend="0%" color="bg-emerald-500" />
+        <StatCard label="Absent Today" value="0" icon={XCircle} trend="0%" color="bg-rose-500" />
+        <StatCard label="Avg. Attendance" value="0%" icon={BarChart3} color="bg-amber-500" />
       </div>
 
       <Card title="Teaching Schedule" subtitle="View your classes, groups and locations">

@@ -1,64 +1,89 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Users, CheckCircle2, XCircle, Search, Calendar as CalendarIcon } from 'lucide-react'
 import Card from '../../components/ui/Card'
-import { GROUP_STUDENTS } from '../../data/mockData'
+import { getGroupStudents, getAllAttendance } from '../../api/api'
 
 function ReportsPage() {
-  const groups = Object.keys(GROUP_STUDENTS)
-  const [selectedGroup, setSelectedGroup] = useState(groups[0] || '')
+  const [studentsData, setStudentsData] = useState([])
+  const [loading, setLoading] = useState(true)
+  
+  const groups = ['All'] // Simplified for now since we don't have group info
+  const [selectedGroup, setSelectedGroup] = useState(groups[0])
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedMonth, setSelectedMonth] = useState('')
 
-  const students = selectedGroup ? GROUP_STUDENTS[selectedGroup] : []
-  
-  const filteredStudents = students.filter(student => 
-    student.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    student.studentId.toLowerCase().includes(searchQuery.toLowerCase())
+  useEffect(() => {
+    async function loadData() {
+      const { data: students } = await getGroupStudents()
+      const { data: attendance } = await getAllAttendance()
+      
+      if (students && attendance) {
+        const formattedStudents = students.map(st => {
+          const studentAttendance = attendance.filter(a => a.student_id === st.id)
+          const attendanceMap = {}
+          studentAttendance.forEach(a => {
+            if (a.attendance_sessions?.date) {
+              attendanceMap[a.attendance_sessions.date] = a.status
+            }
+          })
+          return {
+            id: st.id,
+            name: st.full_name,
+            studentId: st.student_code,
+            group: st.groups?.name || '',
+            attendance: attendanceMap
+          }
+        })
+        setStudentsData(formattedStudents)
+      }
+      setLoading(false)
+    }
+    loadData()
+  }, [])
+
+  const filteredStudents = studentsData.filter(student => 
+    student.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    student.studentId?.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  // Hardcoded academic months (September to June)
   const ACADEMIC_MONTHS = useMemo(() => [
-    { label: 'September 2023', value: 'Sep' },
-    { label: 'October 2023', value: 'Oct' },
-    { label: 'November 2023', value: 'Nov' },
-    { label: 'December 2023', value: 'Dec' },
-    { label: 'January 2024', value: 'Jan' },
-    { label: 'February 2024', value: 'Feb' },
-    { label: 'March 2024', value: 'Mar' },
-    { label: 'April 2024', value: 'Apr' },
-    { label: 'May 2024', value: 'May' },
-    { label: 'June 2024', value: 'Jun' }
-  ], []);
+    { label: 'September', value: '09' },
+    { label: 'October', value: '10' },
+    { label: 'November', value: '11' },
+    { label: 'December', value: '12' },
+    { label: 'January', value: '01' },
+    { label: 'February', value: '02' },
+    { label: 'March', value: '03' },
+    { label: 'April', value: '04' },
+    { label: 'May', value: '05' },
+    { label: 'June', value: '06' }
+  ], [])
 
-  // Extract all unique dates available in the mock data
   const allDates = useMemo(() => {
-    if (!students || students.length === 0) return []
+    if (!studentsData || studentsData.length === 0) return []
     const datesSet = new Set()
     
-    students.forEach(student => {
+    studentsData.forEach(student => {
       if (student.attendance) {
         Object.keys(student.attendance).forEach(date => datesSet.add(date))
       }
     })
     
-    // Sort dates conceptually (mock data has dates like 'Mar 11', 'Mar 12')
-    return Array.from(datesSet).sort((a, b) => {
-      return new Date(`${a} 2024`) - new Date(`${b} 2024`);
-    })
-  }, [students])
+    return Array.from(datesSet).sort((a, b) => new Date(a) - new Date(b))
+  }, [studentsData])
 
-  // Set initial selected month to March since our mock data is mainly in March
-  useEffect(() => {
-    if (!selectedMonth) {
-      setSelectedMonth('Mar')
-    }
-  }, [selectedMonth])
-
-  // Filter dates by selected month
   const displayDates = useMemo(() => {
     if (!selectedMonth) return allDates
-    return allDates.filter(date => date.startsWith(selectedMonth))
+    return allDates.filter(date => {
+      // dates are likely YYYY-MM-DD
+      const monthParts = date.split('-')
+      return monthParts.length === 3 && monthParts[1] === selectedMonth
+    })
   }, [allDates, selectedMonth])
+
+  if (loading) {
+    return <div className="p-8 text-center text-slate-500">Loading reports...</div>
+  }
 
   return (
     <div className="space-y-6">
@@ -141,7 +166,6 @@ function ReportsPage() {
               </thead>
               <tbody>
                 {filteredStudents.map((student) => {
-                  // Calculate total absences from ALL dates, not just displayed dates
                   const totalAbsences = Object.values(student.attendance || {}).filter(status => status === 'absent').length;
                   
                   return (

@@ -39,7 +39,18 @@ export async function getUserProfile(userId) {
   // student tekshiramiz
   const { data: student } = await supabase
     .from("students")
-    .select("*")
+    .select(`
+      id,
+      full_name,
+      email,
+      student_code,
+      profile_picture,
+      group_id,
+      faculty_id,
+      user_id,
+      groups!group_id ( name ),
+      faculty!faculty_id ( name )
+    `)
     .eq("user_id", userId)
     .single();
 
@@ -48,7 +59,12 @@ export async function getUserProfile(userId) {
   // professor tekshiramiz
   const { data: professor } = await supabase
     .from("professors")
-    .select("*")
+    .select(`
+      id,
+      full_name,
+      email,
+      user_id
+    `)
     .eq("user_id", userId)
     .single();
 
@@ -163,4 +179,113 @@ export async function markAttendance({
 
   if (error) return fail(error);
   return ok(data);
+}
+
+/** ---------- Dashboard & Reports Data ---------- **/
+
+export async function getStudentSchedule(studentId) {
+  const { data, error } = await supabase
+    .from("schedules")
+    .select(`
+      id,
+      day_of_week,
+      start_time,
+      end_time,
+      courses ( name ),
+      professors ( full_name ),
+      rooms ( name )
+    `);
+  if (error) return fail(error);
+  return ok(data || []);
+}
+
+export async function getProfessorSchedule(professorId) {
+  const { data, error } = await supabase
+    .from("schedules")
+    .select(`
+      id,
+      day_of_week,
+      start_time,
+      end_time,
+      courses ( name ),
+      rooms ( name )
+    `)
+    .eq("professor_id", professorId);
+  if (error) return fail(error);
+  return ok(data || []);
+}
+
+export async function getEnrolledCourses(groupId) {
+  if (!groupId) return ok([]);
+  const { data, error } = await supabase
+    .from("schedules")
+    .select(`
+      id,
+      day_of_week,
+      start_time,
+      end_time,
+      type,
+      courses ( id, name ),
+      professors ( full_name ),
+      rooms ( name )
+    `)
+    .eq("group_id", groupId);
+  if (error) return fail(error);
+  // Unique courses only (schedules can repeat per day)
+  const seen = new Set();
+  const unique = (data || []).filter(s => {
+    const key = s.courses?.id;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return ok(unique);
+}
+
+export async function getLiveMonitoringData(sessionId) {
+  if (!sessionId) return ok([]);
+  const { data, error } = await supabase
+    .from("attendance_records")
+    .select(`
+      id,
+      status,
+      detected_at,
+      confidence,
+      students ( student_code, full_name )
+    `)
+    .eq("session_id", sessionId);
+  if (error) return fail(error);
+  return ok(data || []);
+}
+
+export async function getActiveSession() {
+  const { data, error } = await supabase
+    .from("attendance_sessions")
+    .select("*")
+    .is("ended_at", null)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .single();
+  if (error && error.code !== 'PGRST116') return fail(error);
+  return ok(data || null);
+}
+
+export async function getGroupStudents() {
+  const { data, error } = await supabase
+    .from("students")
+    .select("id, student_code, full_name, group_id, groups ( name )");
+  if (error) return fail(error);
+  return ok(data || []);
+}
+
+export async function getAllAttendance() {
+  const { data, error } = await supabase
+    .from("attendance_records")
+    .select(`
+      status,
+      student_id,
+      attendance_sessions ( date )
+    `);
+  if (error) return fail(error);
+  return ok(data || []);
 }

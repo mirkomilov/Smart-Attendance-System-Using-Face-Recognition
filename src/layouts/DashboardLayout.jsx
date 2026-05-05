@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { logout, getCurrentUser, getUserProfile } from '../api/api'
 import {
   LayoutDashboard,
   BarChart3,
@@ -15,8 +16,20 @@ import { cn } from '../lib/cn'
 
 function DashboardLayout({ role = 'student' }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [profile, setProfile] = useState(null)
   const navigate = useNavigate()
   const location = useLocation()
+
+  useEffect(() => {
+    async function loadProfile() {
+      const { data: user } = await getCurrentUser()
+      if (user) {
+        const { data: userProfile } = await getUserProfile(user.id)
+        if (userProfile) setProfile(userProfile)
+      }
+    }
+    loadProfile()
+  }, [])
 
   const studentNav = [
     { path: '/student/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -38,8 +51,9 @@ function DashboardLayout({ role = 'student' }) {
 
   const pageTitle = matchedItem?.label || 'Dashboard'
 
-  const handleLogout = () => {
-    navigate('/auth/select-role')
+  const handleLogout = async () => {
+    await logout()
+    navigate('/login')
   }
 
   return (
@@ -103,15 +117,17 @@ function DashboardLayout({ role = 'student' }) {
             <div className="flex items-center gap-3 pl-6 border-l border-slate-100">
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-bold text-slate-900">
-                  {role === 'professor' ? 'Prof. Robert Fox' : 'John Doe'}
+                  {profile?.full_name || (role === 'professor' ? 'Professor' : 'Student')}
                 </p>
                 <p className="text-xs text-slate-500">
-                  {role === 'professor' ? 'Computer Science' : 'CS-2024'}
+                  {role === 'professor'
+                    ? (profile?.email || 'Professor')
+                    : (profile?.groups?.name || profile?.faculty?.name || 'Student')}
                 </p>
               </div>
 
               <div className="w-10 h-10 rounded-full bg-blue-100 border-2 border-white shadow-sm flex items-center justify-center text-blue-600 font-bold">
-                {role === 'professor' ? 'RF' : 'JD'}
+                {profile?.full_name ? profile.full_name.substring(0, 2).toUpperCase() : (role === 'professor' ? 'PR' : 'ST')}
               </div>
             </div>
           </div>

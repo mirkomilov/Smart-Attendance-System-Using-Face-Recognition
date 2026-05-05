@@ -1,15 +1,40 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, isToday } from 'date-fns'
 import { Calendar as CalendarIcon, CheckCircle2, XCircle, BarChart3, Clock, Users, MapPin, Clock3, ChevronLeft, ChevronRight } from 'lucide-react'
 import Card from '../../components/ui/Card'
 import StatCard from '../../components/ui/StatCard'
-import { WEEKLY_SCHEDULE, PIE_DATA } from '../../data/mockData'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import { cn } from '../../lib/cn'
+import { getCurrentUser, getUserProfile, getStudentSchedule, getAttendanceByStudent } from '../../api/api'
 
 function StudentDashboardPage() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(new Date())
+  const [schedules, setSchedules] = useState([])
+  const [attendanceRecords, setAttendanceRecords] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function loadData() {
+      const { data: user } = await getCurrentUser()
+      if (!user) {
+        setLoading(false)
+        return
+      }
+
+      const { data: profile } = await getUserProfile(user.id)
+      const studentId = profile?.id
+
+      if (studentId) {
+        const { data: schedData } = await getStudentSchedule(studentId)
+        const { data: attData } = await getAttendanceByStudent(studentId)
+        if (schedData) setSchedules(schedData)
+        if (attData) setAttendanceRecords(attData)
+      }
+      setLoading(false)
+    }
+    loadData()
+  }, [])
 
   const monthStart = startOfMonth(currentDate)
   const monthEnd = endOfMonth(monthStart)
@@ -22,33 +47,77 @@ function StudentDashboardPage() {
 
   const getClassesForDate = (date) => {
     const dayName = format(date, 'EEEE')
-    const scheduleDay = WEEKLY_SCHEDULE.find((d) => d.day === dayName)
-    if (!scheduleDay || !scheduleDay.classes) return []
-
+    const dateStr = format(date, 'yyyy-MM-dd')
     const now = new Date()
     const todayStr = format(now, 'yyyy-MM-dd')
-    const dateStr = format(date, 'yyyy-MM-dd')
 
-    return scheduleDay.classes.map((cls) => {
+    // Find all schedules matching this day of week
+    const dailySchedules = schedules.filter(s => s.day_of_week === dayName)
+
+    return dailySchedules.map((sched) => {
+      // check if there's an attendance record for this schedule on this date
+      const record = attendanceRecords.find(r => 
+        r.attendance_sessions && 
+        r.attendance_sessions.date === dateStr &&
+        r.attendance_sessions.schedule_id === sched.id
+      )
+
       let status = 'upcoming'
-      if (dateStr < todayStr) {
-        status = (date.getDate() + cls.id) % 5 === 0 ? 'absent' : 'present'
-      } else if (dateStr === todayStr) {
-        status = 'present'
+      if (record) {
+        status = record.status // 'present', 'absent', 'late'
+      } else if (dateStr < todayStr) {
+        status = 'absent' // past without record implies absent
       }
-      return { ...cls, status, uniqueId: `${dateStr}-${cls.id}` }
+
+      return {
+        id: sched.id,
+        course: sched.courses?.name || 'Unknown Course',
+        time: `${sched.start_time?.slice(0,5)} - ${sched.end_time?.slice(0,5)}`,
+        room: sched.rooms?.name || 'TBA',
+        professor: sched.professors?.full_name || 'TBA',
+        status,
+        uniqueId: `${dateStr}-${sched.id}`
+      }
     })
   }
 
   const selectedDateClasses = getClassesForDate(selectedDate)
 
+  // Calculate overall stats
+  let totalClasses = 0
+  let presentClasses = 0
+  let absentClasses = 0
+  let lateClasses = 0
+
+  attendanceRecords.forEach(r => {
+    totalClasses++
+    if (r.status === 'present') presentClasses++
+    else if (r.status === 'absent') absentClasses++
+    else if (r.status === 'late') lateClasses++
+  })
+
+  // Mocking total classes somewhat if empty to avoid 0/0
+  const totalExpected = schedules.length * 4 // roughly 4 weeks a month
+  const attendancePercent = totalClasses > 0 ? Math.round((presentClasses / totalClasses) * 100) : 0
+
+  const pieData = [
+    { name: 'Present', value: presentClasses || 1, color: '#0ea5e9' }, // || 1 to show empty chart
+    { name: 'Absent', value: absentClasses, color: '#ef4444' },
+    { name: 'Late', value: lateClasses, color: '#f59e0b' },
+  ]
+  const renderPieData = totalClasses > 0 ? pieData : [{ name: 'No Data', value: 1, color: '#e2e8f0' }]
+
+  if (loading) {
+    return <div className="p-8 text-center text-slate-500">Loading your dashboard...</div>
+  }
+
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard label="Total Classes" value="48" icon={CalendarIcon} color="bg-blue-600" />
-        <StatCard label="Present" value="42" icon={CheckCircle2} trend="+2%" color="bg-emerald-500" />
-        <StatCard label="Absent" value="6" icon={XCircle} trend="-1%" color="bg-rose-500" />
-        <StatCard label="Attendance %" value="87.5%" icon={BarChart3} color="bg-amber-500" />
+        <StatCard label="Total Classes" value={totalClasses.toString()} icon={CalendarIcon} color="bg-blue-600" />
+        <StatCard label="Present" value={presentClasses.toString()} icon={CheckCircle2} trend="" color="bg-emerald-500" />
+        <StatCard label="Absent" value={absentClasses.toString()} icon={XCircle} trend="" color="bg-rose-500" />
+        <StatCard label="Attendance %" value={`${attendancePercent}%`} icon={BarChart3} color="bg-amber-500" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -102,7 +171,8 @@ function StudentDashboardPage() {
                             className={cn(
                               "w-1.5 h-1.5 rounded-full",
                               cls.status === 'present' ? "bg-emerald-500" :
-                              cls.status === 'absent' ? "bg-rose-500" : "bg-slate-300"
+                              cls.status === 'absent' ? "bg-rose-500" :
+                              cls.status === 'late' ? "bg-amber-500" : "bg-slate-300"
                             )}
                           />
                         ))}
@@ -161,8 +231,8 @@ function StudentDashboardPage() {
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={PIE_DATA} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                    {PIE_DATA.map((entry, index) => (
+                  <Pie data={renderPieData} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                    {renderPieData.map((entry, index) => (
                       <Cell key={index} fill={entry.color} />
                     ))}
                   </Pie>
@@ -172,32 +242,35 @@ function StudentDashboardPage() {
             </div>
 
             <div className="space-y-3 mt-4">
-              {PIE_DATA.map((item) => (
+              {totalClasses > 0 ? pieData.map((item) => (
                 <div key={item.name} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
                     <span className="text-slate-600">{item.name}</span>
                   </div>
-                  <span className="font-bold text-slate-900">{item.value}%</span>
+                  <span className="font-bold text-slate-900">{Math.round((item.value / totalClasses) * 100)}%</span>
                 </div>
-              ))}
+              )) : (
+                <div className="text-sm text-center text-slate-500">No attendance data yet</div>
+              )}
             </div>
           </Card>
 
-          <Card className="bg-blue-600 text-white border-none shadow-blue-200">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="p-2 bg-white/20 rounded-lg">
-                <Clock size={20} />
+          {schedules.length > 0 && (
+            <Card className="bg-blue-600 text-white border-none shadow-blue-200">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <Clock size={20} />
+                </div>
+                <h4 className="font-bold">Next Class</h4>
               </div>
-              <h4 className="font-bold">Next Class</h4>
-            </div>
-            <p className="text-blue-100 text-sm mb-1">Starts in 45 minutes</p>
-            <h3 className="text-xl font-bold mb-4">Cloud Computing</h3>
-            <div className="flex items-center gap-2 text-sm text-blue-100">
-              <Users size={16} />
-              <span>Room L-201 • Missis Sokhibjamol Boeva</span>
-            </div>
-          </Card>
+              <h3 className="text-xl font-bold mb-4">{schedules[0]?.courses?.name || 'TBA'}</h3>
+              <div className="flex items-center gap-2 text-sm text-blue-100">
+                <Users size={16} />
+                <span>Room {schedules[0]?.rooms?.name || 'TBA'} • {schedules[0]?.professors?.full_name || 'TBA'}</span>
+              </div>
+            </Card>
+          )}
         </div>
       </div>
     </div>
