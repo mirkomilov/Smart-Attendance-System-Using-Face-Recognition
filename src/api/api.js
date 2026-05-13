@@ -36,7 +36,6 @@ export async function logout() {
 /** ---------- User Profile (ROLE DETECT) ---------- **/
 
 export async function getUserProfile(userId) {
-  // student tekshiramiz
   const { data: student } = await supabase
     .from("students")
     .select(`
@@ -56,7 +55,6 @@ export async function getUserProfile(userId) {
 
   if (student) return ok({ ...student, role: "student" });
 
-  // professor tekshiramiz
   const { data: professor } = await supabase
     .from("professors")
     .select(`
@@ -159,7 +157,7 @@ export async function endAttendanceSession(sessionId) {
   return ok(data);
 }
 
-/** ---------- Attendance Record (Python yozadi, lekin test uchun) ---------- **/
+/** ---------- Attendance Record ---------- **/
 
 export async function markAttendance({
   session_id,
@@ -224,14 +222,11 @@ export async function getProfessorSubjects(professorId) {
   if (!professorId) return ok([]);
   const { data, error } = await supabase
     .from("schedules")
-    .select(`
-      courses ( id, name )
-    `)
+    .select(`courses ( id, name )`)
     .eq("professor_id", professorId);
-  
+
   if (error) return fail(error);
-  
-  // Unique courses only
+
   const seen = new Set();
   const unique = (data || [])
     .map(s => s.courses)
@@ -240,7 +235,7 @@ export async function getProfessorSubjects(professorId) {
       seen.add(c.id);
       return true;
     });
-    
+
   return ok(unique);
 }
 
@@ -248,13 +243,11 @@ export async function getProfessorGroups(professorId) {
   if (!professorId) return ok([]);
   const { data, error } = await supabase
     .from("schedules")
-    .select(`
-      groups ( id, name )
-    `)
+    .select(`groups ( id, name )`)
     .eq("professor_id", professorId);
-  
+
   if (error) return fail(error);
-  
+
   const seen = new Set();
   const unique = (data || [])
     .map(s => s.groups)
@@ -263,7 +256,7 @@ export async function getProfessorGroups(professorId) {
       seen.add(g.id);
       return true;
     });
-    
+
   return ok(unique);
 }
 
@@ -283,7 +276,7 @@ export async function getEnrolledCourses(groupId) {
     `)
     .eq("group_id", groupId);
   if (error) return fail(error);
-  // Unique courses only (schedules can repeat per day)
+
   const seen = new Set();
   const unique = (data || []).filter(s => {
     const key = s.courses?.id;
@@ -303,38 +296,56 @@ export async function getLiveMonitoringData(sessionId) {
       status,
       detected_at,
       confidence,
-      students ( student_code, full_name )
+      student_id,
+      students ( id, student_code, full_name )
     `)
     .eq("session_id", sessionId);
   if (error) return fail(error);
   return ok(data || []);
 }
 
-export async function getActiveSession(professorId) {
-  if (!professorId) return ok(null);
-  
-  const { data, error } = await supabase
+/** ---------- Active Session ---------- **/
+// ✅ TUZATISH: professorId ixtiyoriy, schedules → courses + groups ham yuklanadi
+
+export async function getActiveSession(professorId = null) {
+  let query = supabase
     .from("attendance_sessions")
-    .select("*, schedules!inner(professor_id)")
+    .select(`
+      *,
+      schedules (
+        id,
+        group_id,
+        professor_id,
+        courses ( id, name ),
+        groups ( id, name ),
+        rooms ( name )
+      )
+    `)
     .is("ended_at", null)
-    .eq("schedules.professor_id", professorId)
     .order("started_at", { ascending: false })
-    .limit(1)
-    .single();
-    
-  if (error && error.code !== 'PGRST116') return fail(error);
+    .limit(1);
+
+  // Agar professorId berilgan bo'lsa — faqat shu professorning sessiyasi
+  if (professorId) {
+    query = query.eq("schedules.professor_id", professorId);
+  }
+
+  const { data, error } = await query.maybeSingle();
+
+  if (error) return fail(error);
   return ok(data || null);
 }
 
 export async function getGroupStudents(groupId = null) {
   let query = supabase
     .from("students")
-    .select("id, student_code, full_name, group_id, groups ( name )");
-  
+    .select("id, student_code, full_name, group_id, groups ( name )")
+    .order("full_name");
+
   if (groupId) {
     query = query.eq("group_id", groupId);
   }
-  
+
   const { data, error } = await query;
   if (error) return fail(error);
   return ok(data || []);
