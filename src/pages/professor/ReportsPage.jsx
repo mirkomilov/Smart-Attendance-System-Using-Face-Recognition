@@ -1,15 +1,22 @@
 import { useState, useMemo, useEffect } from 'react'
+import { format, eachDayOfInterval } from 'date-fns'
 import { Users, CheckCircle2, XCircle, Search, Calendar as CalendarIcon } from 'lucide-react'
 import Card from '../../components/ui/Card'
-import { getGroupStudents, getAllAttendance, getCurrentUser, getUserProfile, getProfessorGroups } from '../../api/api'
+import { cn } from '../../lib/cn'
+import { getGroupStudents, getAllAttendance, getCurrentUser, getUserProfile, getProfessorGroups, getStudentSchedule } from '../../api/api'
 
 function ReportsPage() {
   const [studentsData, setStudentsData] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [initialLoading, setInitialLoading] = useState(true)
+  const [dataLoading, setDataLoading] = useState(false)
   const [groups, setGroups] = useState([])
   const [selectedGroup, setSelectedGroup] = useState('')
+  const [groupSchedules, setGroupSchedules] = useState([])
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedMonth, setSelectedMonth] = useState('')
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const m = new Date().getMonth() + 1
+    return m < 10 ? `0${m}` : `${m}`
+  })
 
   useEffect(() => {
     async function loadInitialData() {
@@ -21,20 +28,17 @@ function ReportsPage() {
             const { data: profGroups } = await getProfessorGroups(profile.id)
             if (profGroups) {
               setGroups(profGroups)
-              if (profGroups.length > 0) setSelectedGroup(profGroups[0].id)
-              else setLoading(false)
-            } else {
-              setLoading(false)
+              if (profGroups.length > 0) {
+                setSelectedGroup(profGroups[0].id)
+                return // Let loadReports handle initialLoading
+              }
             }
-          } else {
-            setLoading(false)
           }
-        } else {
-          setLoading(false)
         }
+        setInitialLoading(false)
       } catch (err) {
         console.error("Reports load error:", err)
-        setLoading(false)
+        setInitialLoading(false)
       }
     }
     loadInitialData()
@@ -42,15 +46,15 @@ function ReportsPage() {
 
   useEffect(() => {
     async function loadReports() {
-      if (!selectedGroup) {
-        if (groups.length === 0) setLoading(false)
-        return
-      }
+      if (!selectedGroup) return
       
-      setLoading(true)
+      setDataLoading(true)
       try {
         const { data: students } = await getGroupStudents(selectedGroup)
         const { data: attendance } = await getAllAttendance()
+        const { data: sched } = await getStudentSchedule(selectedGroup)
+        
+        if (sched) setGroupSchedules(sched)
         
         if (students && attendance) {
           const formattedStudents = students.map(st => {
@@ -74,11 +78,12 @@ function ReportsPage() {
       } catch (err) {
         console.error("Reports data error:", err)
       } finally {
-        setLoading(false)
+        setDataLoading(false)
+        setInitialLoading(false)
       }
     }
     loadReports()
-  }, [selectedGroup, groups.length])
+  }, [selectedGroup])
 
   const filteredStudents = studentsData.filter(student => 
     student.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -99,17 +104,19 @@ function ReportsPage() {
   ], [])
 
   const allDates = useMemo(() => {
-    if (!studentsData || studentsData.length === 0) return []
-    const datesSet = new Set()
+    if (!groupSchedules || groupSchedules.length === 0) return []
+    const now = new Date()
+    const semesterStart = new Date(now.getFullYear(), 2, 1)
+    const semesterEnd = new Date(now.getFullYear(), 4, 31)
+    const totalDays = eachDayOfInterval({ start: semesterStart, end: semesterEnd })
     
-    studentsData.forEach(student => {
-      if (student.attendance) {
-        Object.keys(student.attendance).forEach(date => datesSet.add(date))
-      }
-    })
+    const validDaysOfWeek = new Set(groupSchedules.map(s => Number(s.day_of_week)))
     
-    return Array.from(datesSet).sort((a, b) => new Date(a) - new Date(b))
-  }, [studentsData])
+    return totalDays.filter(day => {
+      const dayNum = day.getDay() === 0 ? 7 : day.getDay()
+      return validDaysOfWeek.has(dayNum)
+    }).map(d => format(d, 'yyyy-MM-dd'))
+  }, [groupSchedules])
 
   const displayDates = useMemo(() => {
     if (!selectedMonth) return allDates
@@ -120,7 +127,7 @@ function ReportsPage() {
     })
   }, [allDates, selectedMonth])
 
-  if (loading) {
+  if (initialLoading) {
     return <div className="p-8 text-center text-slate-500">Loading reports...</div>
   }
 
@@ -184,7 +191,7 @@ function ReportsPage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-slate-100">
+        <div className={cn("w-full max-w-full overflow-auto max-h-[500px] rounded-xl border border-slate-100 transition-opacity", dataLoading ? "opacity-50 pointer-events-none" : "opacity-100")}>
           {filteredStudents.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center text-slate-500">
               <Users size={48} className="text-slate-200 mb-4" />
@@ -193,10 +200,11 @@ function ReportsPage() {
             </div>
           ) : (
             <table className="w-full text-sm text-left whitespace-nowrap">
-              <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-100">
+              <thead className="sticky top-0 z-10 text-xs text-slate-500 uppercase bg-slate-50 shadow-[0_1px_0_0_#f1f5f9]">
                 <tr>
                   <th className="px-4 py-4 font-semibold">Student Name</th>
                   <th className="px-4 py-4 font-semibold">ID</th>
+                  <th className="px-4 py-4 font-semibold text-center text-emerald-600">Total Present</th>
                   <th className="px-4 py-4 font-semibold text-center text-rose-600">Total Absences</th>
                   {displayDates.map(date => (
                     <th key={date} className="px-4 py-4 font-semibold text-center">{date}</th>
@@ -205,7 +213,22 @@ function ReportsPage() {
               </thead>
               <tbody>
                 {filteredStudents.map((student) => {
-                  const totalAbsences = Object.values(student.attendance || {}).filter(status => status === 'absent').length;
+                  const todayStr = format(new Date(), 'yyyy-MM-dd');
+                  
+                  // Calculate absences logic: missed scheduled days in the past
+                  let totalAbsences = 0;
+                  let totalPresent = 0;
+                  
+                  allDates.forEach(date => {
+                    const status = student.attendance?.[date];
+                    if (status === 'present' || status === 'late') {
+                      totalPresent++;
+                    } else if (status === 'absent') {
+                      totalAbsences++;
+                    } else if (!status && date < todayStr) {
+                      totalAbsences++; // Count past dates without attendance as absent
+                    }
+                  });
                   
                   return (
                     <tr key={student.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
@@ -216,12 +239,18 @@ function ReportsPage() {
                         {student.studentId}
                       </td>
                       <td className="px-4 py-3 text-center">
+                        <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 font-bold text-xs">
+                          {totalPresent}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
                         <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-full bg-rose-50 text-rose-600 font-bold text-xs">
                           {totalAbsences}
                         </span>
                       </td>
                       {displayDates.map(date => {
                         const status = student.attendance?.[date]
+                        const isUpcoming = date > todayStr;
                         return (
                           <td key={date} className="px-4 py-3 text-center">
                             {(status === 'present' || status === 'late') && (
@@ -234,8 +263,13 @@ function ReportsPage() {
                                 <XCircle size={16} />
                               </div>
                             )}
-                            {!status && (
+                            {!status && isUpcoming && (
                               <span className="text-slate-300">-</span>
+                            )}
+                            {!status && !isUpcoming && (
+                              <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-rose-50 text-rose-600 mx-auto" title="Absent (Unmarked)">
+                                <XCircle size={16} />
+                              </div>
                             )}
                           </td>
                         )

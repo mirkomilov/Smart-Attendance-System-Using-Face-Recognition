@@ -94,7 +94,7 @@ function DashboardLayout({ role = 'student' }) {
         </div>
       </aside>
 
-      <main className={cn('flex-1 transition-all duration-300', sidebarOpen ? 'ml-64' : 'ml-20')}>
+      <main className={cn('flex-1 min-w-0 transition-all duration-300', sidebarOpen ? 'ml-64' : 'ml-20')}>
         <header className="h-20 bg-white border-b border-slate-100 flex items-center justify-between px-8 sticky top-0 z-40">
           <div className="flex items-center gap-4">
             <button

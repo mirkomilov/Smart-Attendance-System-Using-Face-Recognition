@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, isToday } from 'date-fns'
-import { Users, CheckCircle2, XCircle, BarChart3, Calendar as CalendarIcon, MapPin, Clock3, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Calendar as CalendarIcon, Clock3, MapPin, Users, ChevronLeft, ChevronRight } from 'lucide-react'
 import Card from '../../components/ui/Card'
-import StatCard from '../../components/ui/StatCard'
 import { cn } from '../../lib/cn'
 import { getCurrentUser, getUserProfile, getProfessorSchedule } from '../../api/api'
 
@@ -12,12 +11,7 @@ function ProfessorDashboardPage() {
   const [schedules, setSchedules] = useState([])
   const [loading, setLoading] = useState(true)
 
-  const [stats, setStats] = useState({
-    totalStudents: 0,
-    presentToday: 0,
-    absentToday: 0,
-    avgAttendance: 0
-  })
+
 
   useEffect(() => {
     async function loadData() {
@@ -29,30 +23,6 @@ function ProfessorDashboardPage() {
             const { data: schedData } = await getProfessorSchedule(profile.id)
             if (schedData) {
               setSchedules(schedData)
-              
-              // Calculate total students
-              const groupIds = [...new Set(schedData.map(s => s.groups?.id).filter(Boolean))]
-              let allStudents = []
-              for (const gid of groupIds) {
-                const { data: groupSt } = await getGroupStudents(gid)
-                if (groupSt) allStudents = [...allStudents, ...groupSt]
-              }
-              const uniqueStudentsCount = [...new Set(allStudents.map(s => s.id))].length
-              
-              // Calculate today's attendance
-              const todayStr = format(new Date(), 'yyyy-MM-dd')
-              const { data: allAtt } = await getAllAttendance()
-              const todayAtt = allAtt?.filter(a => a.attendance_sessions?.date === todayStr) || []
-              
-              const present = todayAtt.filter(a => a.status === 'present').length
-              const absent = todayAtt.filter(a => a.status === 'absent').length
-              
-              setStats({
-                totalStudents: uniqueStudentsCount,
-                presentToday: present,
-                absentToday: absent,
-                avgAttendance: uniqueStudentsCount > 0 ? Math.round((present / uniqueStudentsCount) * 100) : 0
-              })
             }
           }
         }
@@ -116,12 +86,7 @@ function ProfessorDashboardPage() {
 
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard label="Total Students" value={stats.totalStudents.toString()} icon={Users} color="bg-blue-600" />
-        <StatCard label="Present Today" value={stats.presentToday.toString()} icon={CheckCircle2} trend="" color="bg-emerald-500" />
-        <StatCard label="Absent Today" value={stats.absentToday.toString()} icon={XCircle} trend="" color="bg-rose-500" />
-        <StatCard label="Avg. Attendance" value={`${stats.avgAttendance}%`} icon={BarChart3} color="bg-amber-500" />
-      </div>
+
 
       <Card title="Teaching Schedule" subtitle="View your classes, groups and locations">
         <div className="flex flex-col lg:flex-row gap-6">
