@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
+import { eachDayOfInterval } from 'date-fns'
 import { GraduationCap, BookOpen, Clock3, MapPin, User } from 'lucide-react'
 import Card from '../../components/ui/Card'
-import { getCurrentUser, getUserProfile, getEnrolledCourses, getAttendanceByStudent } from '../../api/api'
+import { getCurrentUser, getUserProfile, getStudentSchedule, getAttendanceByStudent } from '../../api/api'
 
 function StudentSettingsPage() {
   const [profile, setProfile] = useState(null)
@@ -20,8 +21,8 @@ function StudentSettingsPage() {
           setProfile(userProfile)
 
           // group_id bo'yicha darslar
-          const { data: enrolled } = await getEnrolledCourses(userProfile.group_id)
-          if (enrolled) setCourses(enrolled)
+          const { data: schedData } = await getStudentSchedule(userProfile.group_id)
+          if (schedData) setCourses(schedData)
 
           // davomat ma'lumotlari
           const { data: att } = await getAttendanceByStudent(userProfile.id)
@@ -33,7 +34,10 @@ function StudentSettingsPage() {
     loadData()
   }, [])
 
-  // Har bir kurs uchun davomat foizini hisoblash
+  const now = new Date();
+  const semesterStart = now.getMonth() < 7 ? new Date(now.getFullYear(), 2, 1) : new Date(now.getFullYear(), 8, 1);
+  const semesterEnd = now.getMonth() < 7 ? new Date(now.getFullYear(), 4, 31) : new Date(now.getFullYear(), 11, 31);
+  
   function getCourseStats(courseId) {
     const related = attendanceRecords.filter(
       r => r.attendance_sessions?.schedules?.courses?.id === courseId
@@ -42,6 +46,25 @@ function StudentSettingsPage() {
     const present = related.filter(r => r.status === 'present' || r.status === 'late').length
     return { total, present }
   }
+
+  function getLessonCountForCourse(courseId) {
+    const totalDaysInSemester = eachDayOfInterval({ start: semesterStart, end: semesterEnd });
+    const courseSchedules = courses.filter(s => s.courses?.id === courseId);
+    let count = 0;
+    totalDaysInSemester.forEach(day => {
+      const dayNum = day.getDay() === 0 ? 7 : day.getDay();
+      count += courseSchedules.filter(s => Number(s.day_of_week) === dayNum).length;
+    });
+    return count;
+  }
+
+  // Filter unique courses to show in the list
+  const uniqueCourses = [];
+  courses.forEach(s => {
+    if (s.courses && !uniqueCourses.find(c => c.courses?.id === s.courses.id)) {
+      uniqueCourses.push(s);
+    }
+  });
 
   if (loading) {
     return <div className="max-w-4xl mx-auto p-8 text-center text-slate-500">Loading profile...</div>
@@ -124,9 +147,9 @@ function StudentSettingsPage() {
           )}
         </div>
 
-        {courses.length > 0 ? (
+        {uniqueCourses.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {courses.map((subject) => {
+            {uniqueCourses.map((subject) => {
               return (
                 <div key={subject.id} className="p-6 rounded-2xl border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
                   <div>
@@ -141,7 +164,7 @@ function StudentSettingsPage() {
                   
                   <div className="pt-4 border-t border-slate-50 flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Lessons</span>
-                    <span className="text-sm font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-lg">30 lessons</span>
+                    <span className="text-sm font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-lg">{getLessonCountForCourse(subject.courses?.id)} lessons</span>
                   </div>
                 </div>
               )

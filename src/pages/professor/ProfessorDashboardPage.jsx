@@ -74,11 +74,22 @@ function ProfessorDashboardPage() {
   const nextMonth = () => setCurrentDate(addMonths(currentDate, 1))
   const prevMonth = () => setCurrentDate(subMonths(currentDate, 1))
 
+  const now = new Date();
+  const semesterStart = now.getMonth() < 7 ? new Date(now.getFullYear(), 2, 1) : new Date(now.getFullYear(), 8, 1);
+  const semesterEnd = now.getMonth() < 7 ? new Date(now.getFullYear(), 4, 31) : new Date(now.getFullYear(), 11, 31);
+
   const getClassesForDate = (date) => {
+    const dateStr = format(date, 'yyyy-MM-dd')
+    const semesterStartStr = format(semesterStart, 'yyyy-MM-dd')
+    const semesterEndStr = format(semesterEnd, 'yyyy-MM-dd')
+    
+    if (dateStr < semesterStartStr || dateStr > semesterEndStr) {
+      return []
+    }
+
     // getDay() returns 0 for Sunday, 1 for Monday, etc.
     // Convert to 1 for Monday, ..., 7 for Sunday (ISO)
     const dayNum = date.getDay() === 0 ? 7 : date.getDay()
-    const dateStr = format(date, 'yyyy-MM-dd')
     
     // Find all schedules matching this day of week (numeric)
     const dailySchedules = schedules.filter(s => Number(s.day_of_week) === dayNum)
@@ -156,12 +167,20 @@ function ProfessorDashboardPage() {
                       {format(day, 'd')}
                     </div>
                     <div className="flex flex-wrap gap-1 justify-end pr-1 mt-1">
-                      {dayClasses.map((cls) => (
-                        <div 
-                          key={cls.uniqueId} 
-                          className="w-1.5 h-1.5 rounded-full bg-blue-500"
-                        />
-                      ))}
+                      {dayClasses.map((cls) => {
+                        const dateStr = format(day, 'yyyy-MM-dd');
+                        const todayStr = format(now, 'yyyy-MM-dd');
+                        const isUpcoming = dateStr > todayStr;
+                        return (
+                          <div 
+                            key={cls.uniqueId} 
+                            className={cn(
+                              "w-1.5 h-1.5 rounded-full",
+                              isUpcoming ? "bg-slate-300" : "bg-blue-500"
+                            )}
+                          />
+                        )
+                      })}
                     </div>
                   </div>
                 );

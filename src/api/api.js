@@ -94,10 +94,12 @@ export async function getTodaySchedule(day) {
 
 /** ---------- Monthly Sessions (Calendar dots) ---------- **/
 
-export async function getMonthlySessions() {
+export async function getSessionsBySchedules(scheduleIds) {
+  if (!scheduleIds || scheduleIds.length === 0) return ok([]);
   const { data, error } = await supabase
     .from("attendance_sessions")
-    .select("date");
+    .select("id, schedule_id, date")
+    .in("schedule_id", scheduleIds);
 
   if (error) return fail(error);
   return ok(data);
@@ -113,6 +115,7 @@ export async function getAttendanceByStudent(studentId) {
       detected_at,
       attendance_sessions (
         date,
+        schedule_id,
         schedules (
           courses ( name )
         )
@@ -190,7 +193,7 @@ export async function getStudentSchedule(groupId) {
       day_of_week,
       start_time,
       end_time,
-      courses ( name ),
+      courses ( * ),
       professors ( full_name ),
       rooms ( name )
     `)
@@ -270,7 +273,7 @@ export async function getEnrolledCourses(groupId) {
       start_time,
       end_time,
       type,
-      courses ( id, name ),
+      courses ( * ),
       professors ( full_name ),
       rooms ( name )
     `)

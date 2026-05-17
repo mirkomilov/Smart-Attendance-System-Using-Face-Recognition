@@ -5,13 +5,14 @@ import Card from '../../components/ui/Card'
 import StatCard from '../../components/ui/StatCard'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import { cn } from '../../lib/cn'
-import { getCurrentUser, getUserProfile, getStudentSchedule, getAttendanceByStudent } from '../../api/api'
+import { getCurrentUser, getUserProfile, getStudentSchedule, getAttendanceByStudent, getSessionsBySchedules } from '../../api/api'
 
 function StudentDashboardPage() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [schedules, setSchedules] = useState([])
   const [attendanceRecords, setAttendanceRecords] = useState([])
+  const [allSessions, setAllSessions] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -27,8 +28,16 @@ function StudentDashboardPage() {
 
       if (studentId) {
         const { data: schedData } = await getStudentSchedule(profile.group_id)
+        if (schedData) {
+          setSchedules(schedData)
+          const scheduleIds = schedData.map(s => s.id)
+          if (scheduleIds.length > 0) {
+            const { data: sessionData } = await getSessionsBySchedules(scheduleIds)
+            if (sessionData) setAllSessions(sessionData)
+          }
+        }
+        
         const { data: attData } = await getAttendanceByStudent(studentId)
-        if (schedData) setSchedules(schedData)
         if (attData) setAttendanceRecords(attData)
       }
       setLoading(false)
@@ -45,15 +54,23 @@ function StudentDashboardPage() {
   const nextMonth = () => setCurrentDate(addMonths(currentDate, 1))
   const prevMonth = () => setCurrentDate(subMonths(currentDate, 1))
 
-  const getClassesForDate = (date) => {
-    // getDay() returns 0 for Sunday, 1 for Monday, etc.
-    // Convert to 1 for Monday, ..., 7 for Sunday (ISO)
-    const dayNum = date.getDay() === 0 ? 7 : date.getDay()
-    const dateStr = format(date, 'yyyy-MM-dd')
-    const now = new Date()
-    const todayStr = format(now, 'yyyy-MM-dd')
+  const now = new Date();
+  const semesterStart = now.getMonth() < 7 ? new Date(now.getFullYear(), 2, 1) : new Date(now.getFullYear(), 8, 1);
+  const semesterEnd = now.getMonth() < 7 ? new Date(now.getFullYear(), 4, 31) : new Date(now.getFullYear(), 11, 31);
+  const totalDaysInSemester = eachDayOfInterval({ start: semesterStart, end: semesterEnd });
 
-    // Find all schedules matching this day of week (numeric)
+  const getClassesForDate = (date) => {
+    const dateStr = format(date, 'yyyy-MM-dd')
+    const semesterStartStr = format(semesterStart, 'yyyy-MM-dd')
+    const semesterEndStr = format(semesterEnd, 'yyyy-MM-dd')
+    
+    if (dateStr < semesterStartStr || dateStr > semesterEndStr) {
+      return []
+    }
+
+    const dayNum = date.getDay() === 0 ? 7 : date.getDay()
+    const todayStr = format(now, 'yyyy-MM-dd')
+    
     const dailySchedules = schedules.filter(s => Number(s.day_of_week) === dayNum)
 
     return dailySchedules.map((sched) => {
@@ -64,6 +81,9 @@ function StudentDashboardPage() {
         r.attendance_sessions.schedule_id === sched.id
       )
 
+      // check if there's an attendance session that actually happened
+      const session = allSessions.find(s => s.date === dateStr && s.schedule_id === sched.id)
+      
       let status = 'upcoming'
       if (record) {
         status = record.status // 'present', 'absent', 'late'
@@ -85,29 +105,42 @@ function StudentDashboardPage() {
 
   const selectedDateClasses = getClassesForDate(selectedDate)
 
-  // Calculate overall stats
-  let totalClasses = 0
-  let presentClasses = 0
-  let absentClasses = 0
-  let lateClasses = 0
+  // Calculate stats using semester days up to today
+  const daysSinceSemester = eachDayOfInterval({ start: semesterStart, end: now });
 
-  attendanceRecords.forEach(r => {
-    totalClasses++
-    if (r.status === 'present') presentClasses++
-    else if (r.status === 'absent') absentClasses++
-    else if (r.status === 'late') lateClasses++
-  })
+  let classesHappened = 0;
+  let presentClasses = 0;
+  let absentClasses = 0;
+  let lateClasses = 0;
 
-  // Mocking total classes somewhat if empty to avoid 0/0
-  const totalExpected = schedules.length * 4 // roughly 4 weeks a month
-  const attendancePercent = totalClasses > 0 ? Math.round((presentClasses / totalClasses) * 100) : 0
+  daysSinceSemester.forEach(day => {
+    const dayClasses = getClassesForDate(day);
+    dayClasses.forEach(c => {
+      if (c.status === 'present') presentClasses++;
+      else if (c.status === 'absent') absentClasses++;
+      else if (c.status === 'late') lateClasses++;
+      
+      if (['present', 'absent', 'late'].includes(c.status)) {
+        classesHappened++;
+      }
+    });
+  });
+
+  // Calculate Total Classes dynamically
+  let totalLessons = 0;
+  totalDaysInSemester.forEach(day => {
+    const dayNum = day.getDay() === 0 ? 7 : day.getDay();
+    totalLessons += schedules.filter(s => Number(s.day_of_week) === dayNum).length;
+  });
+
+  const attendancePercent = classesHappened > 0 ? Math.round((presentClasses / classesHappened) * 100) : 0
 
   const pieData = [
     { name: 'Present', value: presentClasses || 1, color: '#0ea5e9' }, // || 1 to show empty chart
     { name: 'Absent', value: absentClasses, color: '#ef4444' },
     { name: 'Late', value: lateClasses, color: '#f59e0b' },
   ]
-  const renderPieData = totalClasses > 0 ? pieData : [{ name: 'No Data', value: 1, color: '#e2e8f0' }]
+  const renderPieData = classesHappened > 0 ? pieData : [{ name: 'No Data', value: 1, color: '#e2e8f0' }]
 
   if (loading) {
     return <div className="p-8 text-center text-slate-500">Loading your dashboard...</div>
@@ -116,7 +149,7 @@ function StudentDashboardPage() {
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard label="Total Classes" value={totalClasses.toString()} icon={CalendarIcon} color="bg-blue-600" />
+        <StatCard label="Total Classes" value={totalLessons.toString()} icon={CalendarIcon} color="bg-blue-600" />
         <StatCard label="Present" value={presentClasses.toString()} icon={CheckCircle2} trend="" color="bg-emerald-500" />
         <StatCard label="Absent" value={absentClasses.toString()} icon={XCircle} trend="" color="bg-rose-500" />
         <StatCard label="Attendance %" value={`${attendancePercent}%`} icon={BarChart3} color="bg-amber-500" />
@@ -151,7 +184,15 @@ function StudentDashboardPage() {
                   const dayClasses = getClassesForDate(day);
                   const isSelected = isSameDay(day, selectedDate);
                   const isCurrentMonth = isSameMonth(day, currentDate);
-                  
+
+                  let dayStatus = 'none';
+                  if (dayClasses.length > 0) {
+                    if (dayClasses.some(c => c.status === 'present')) dayStatus = 'present';
+                    else if (dayClasses.some(c => c.status === 'late')) dayStatus = 'late';
+                    else if (dayClasses.some(c => c.status === 'absent')) dayStatus = 'absent';
+                    else dayStatus = 'upcoming';
+                  }
+
                   return (
                     <div
                       key={idx}
@@ -244,13 +285,13 @@ function StudentDashboardPage() {
             </div>
 
             <div className="space-y-3 mt-4">
-              {totalClasses > 0 ? pieData.map((item) => (
+              {classesHappened > 0 ? pieData.map((item) => (
                 <div key={item.name} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
                     <span className="text-slate-600">{item.name}</span>
                   </div>
-                  <span className="font-bold text-slate-900">{Math.round((item.value / totalClasses) * 100)}%</span>
+                  <span className="font-bold text-slate-900">{Math.round((item.value / classesHappened) * 100)}%</span>
                 </div>
               )) : (
                 <div className="text-sm text-center text-slate-500">No attendance data yet</div>
